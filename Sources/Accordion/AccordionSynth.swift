@@ -5,6 +5,51 @@ enum SynthError: Error {
     case formatUnavailable
 }
 
+enum ReedSound: Int, CaseIterable, Identifiable, Sendable {
+    case musette
+    case clarinet
+    case bassoon
+    case violin
+    case bandoneon
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .musette: "Musette"
+        case .clarinet: "Clarinet"
+        case .bassoon: "Bassoon"
+        case .violin: "Violin"
+        case .bandoneon: "Bandoneon"
+        }
+    }
+}
+
+private struct ReedRecipe {
+    var detune: Float
+    var left: Float
+    var center: Float
+    var right: Float
+    var h1: Float
+    var h2: Float
+    var h3: Float
+    var h4: Float
+    var cutoff: Float
+    var lowHz: Float
+
+    static let all: [ReedRecipe] = [
+        ReedRecipe(detune: cents(12), left: 0.34, center: 0.40, right: 0.26, h1: 1, h2: 0.42, h3: 0.22, h4: 0.08, cutoff: 1, lowHz: 240),
+        ReedRecipe(detune: 1, left: 0, center: 1, right: 0, h1: 1, h2: 0.04, h3: 0.48, h4: 0.06, cutoff: 0.75, lowHz: 200),
+        ReedRecipe(detune: 1, left: 0, center: 1, right: 0, h1: 1, h2: 0.52, h3: 0.10, h4: 0.03, cutoff: 0.48, lowHz: 90),
+        ReedRecipe(detune: cents(6), left: 0.18, center: 0.58, right: 0.24, h1: 1, h2: 0.32, h3: 0.30, h4: 0.18, cutoff: 1.35, lowHz: 320),
+        ReedRecipe(detune: cents(8), left: 0.48, center: 0.08, right: 0.44, h1: 1, h2: 0.58, h3: 0.16, h4: 0.04, cutoff: 0.9, lowHz: 150),
+    ]
+
+    private static func cents(_ value: Float) -> Float {
+        Float(pow(2.0, Double(value) / 1200.0))
+    }
+}
+
 /// Free-reed voices. Loudness is bellows pressure times the key gate.
 final class ReedEngine: @unchecked Sendable {
     private struct Voice {
@@ -24,6 +69,8 @@ final class ReedEngine: @unchecked Sendable {
     private var requestedPressure: Float = 0
     private var requestedBrightness: Float = 0.5
     private var requestedSustain: Float = 0.15
+    private var requestedVolume: Float = 0.8
+    private var requestedSound: Int = ReedSound.musette.rawValue
 
     private var renderNotes = [Int](repeating: -1, count: voiceCount)
     private var held = [Bool](repeating: false, count: voiceCount)
@@ -33,23 +80,22 @@ final class ReedEngine: @unchecked Sendable {
     private var brightness: Float = 0.5
     private let sampleRate: Float
     private let attack: Float
-    private let bassAlpha: Float
-
-    private static let detune: [Float] = [
-        Float(pow(2.0, -12.0 / 1200.0)),
-        1,
-        Float(pow(2.0, 12.0 / 1200.0)),
-    ]
 
     init(sampleRate: Float) {
         let rate = max(sampleRate, 8_000)
         self.sampleRate = rate
         voices = Array(repeating: Voice(), count: Self.voiceCount)
         attack = Float(1 - exp(-1 / Double(rate * 0.03)))
-        bassAlpha = Float(1 - exp(-2 * Double.pi * 240 / Double(rate)))
     }
 
-    func setControls(notes: [Int], pressure: Float, brightness: Float, sustain: Float = 0.15) {
+    func setControls(
+        notes: [Int],
+        pressure: Float,
+        brightness: Float,
+        sustain: Float = 0.15,
+        volume: Float = 1,
+        sound: ReedSound = .musette
+    ) {
         lock.lock()
         defer { lock.unlock() }
         for index in 0..<Self.voiceCount {
@@ -58,6 +104,8 @@ final class ReedEngine: @unchecked Sendable {
         requestedPressure = min(1, max(0, pressure))
         requestedBrightness = min(1, max(0, brightness))
         requestedSustain = min(1, max(0, sustain))
+        requestedVolume = min(1, max(0, volume))
+        requestedSound = sound.rawValue
     }
 
     func renderMono(frameCount: Int) -> [Float] {
@@ -79,7 +127,12 @@ final class ReedEngine: @unchecked Sendable {
         let targetPressure = requestedPressure
         let targetBrightness = requestedBrightness
         let sustain = requestedSustain
+        let volume = requestedVolume
+        let sound = requestedSound
         lock.unlock()
+
+        let recipe = ReedRecipe.all[min(max(0, sound), ReedRecipe.all.count - 1)]
+        let lowAlpha = Float(1 - exp(-2 * Double.pi * Double(recipe.lowHz) / Double(sampleRate)))
 
         for index in 0..<Self.voiceCount {
             held[index] = false
@@ -101,9 +154,9 @@ final class ReedEngine: @unchecked Sendable {
             }
             let frequency = 440 * pow(2, (Float(midi) - 69) / 12)
             let step = frequency / sampleRate
-            increments[index * 3] = step * Self.detune[0]
-            increments[index * 3 + 1] = step * Self.detune[1]
-            increments[index * 3 + 2] = step * Self.detune[2]
+            increments[index * 3] = step / recipe.detune
+            increments[index * 3 + 1] = step
+            increments[index * 3 + 2] = step * recipe.detune
         }
 
         let frames = Float(frameCount)
@@ -111,7 +164,7 @@ final class ReedEngine: @unchecked Sendable {
         let brightnessStep = (targetBrightness - brightness) / frames
         let midPressure = (pressure + targetPressure) * 0.5
         let midBrightness = (brightness + targetBrightness) * 0.5
-        let cutoff = 900 + midPressure * 2200 + midBrightness * 800
+        let cutoff = (900 + midPressure * 2200 + midBrightness * 800) * recipe.cutoff
         let highAlpha = Float(1 - exp(-2 * Double.pi * Double(cutoff) / Double(sampleRate)))
         let releaseSeconds = Sustain.seconds(for: Double(sustain))
         let release = Float(1 - exp(-1 / (Double(sampleRate) * releaseSeconds)))
@@ -121,9 +174,9 @@ final class ReedEngine: @unchecked Sendable {
             brightness += brightnessStep
             var mix: Float = 0
             for index in 0..<Self.voiceCount {
-                mix += sampleVoice(index, highAlpha: highAlpha, release: release)
+                mix += sampleVoice(index, highAlpha: highAlpha, lowAlpha: lowAlpha, release: release, recipe: recipe)
             }
-            buffer[frame] = tanh(mix * pressure * 1.2)
+            buffer[frame] = tanh(mix * pressure * volume * 1.2)
         }
     }
 
@@ -153,7 +206,13 @@ final class ReedEngine: @unchecked Sendable {
         voices[index].midi = midi
     }
 
-    private func sampleVoice(_ index: Int, highAlpha: Float, release: Float) -> Float {
+    private func sampleVoice(
+        _ index: Int,
+        highAlpha: Float,
+        lowAlpha: Float,
+        release: Float,
+        recipe: ReedRecipe
+    ) -> Float {
         let target: Float = held[index] ? 1 : 0
         let envelope = voices[index].env
         if envelope == 0, target == 0 {
@@ -177,23 +236,26 @@ final class ReedEngine: @unchecked Sendable {
         voices[index].phase1 = phase1
         voices[index].phase2 = phase2
 
-        let raw = Self.reed(phase0) * 0.34 + Self.reed(phase1) * 0.40 + Self.reed(phase2) * 0.26
+        let raw = reed(phase0, recipe) * recipe.left
+            + reed(phase1, recipe) * recipe.center
+            + reed(phase2, recipe) * recipe.right
         var high = voices[index].highCut
         var low = voices[index].lowCut
         high += (raw - high) * highAlpha
-        low += (raw - low) * bassAlpha
+        low += (raw - low) * lowAlpha
         voices[index].highCut = high
         voices[index].lowCut = low
         return (high - low) * updated
     }
 
-    private static func reed(_ phase: Float) -> Float {
+    private func reed(_ phase: Float, _ recipe: ReedRecipe) -> Float {
         let angle = phase * (2 * Float.pi)
-        let fundamental = sin(angle)
-        let second = sin(angle * 2)
-        let third = sin(angle * 3)
-        let fourth = sin(angle * 4)
-        return (fundamental + 0.42 * second + 0.22 * third + 0.08 * fourth) * 0.42
+        return (
+            sin(angle) * recipe.h1
+                + sin(angle * 2) * recipe.h2
+                + sin(angle * 3) * recipe.h3
+                + sin(angle * 4) * recipe.h4
+        ) * 0.42
     }
 }
 
@@ -220,8 +282,22 @@ final class AccordionSynth {
         started = true
     }
 
-    func setPerformance(notes: [Int], pressure: Float, brightness: Float, sustain: Float) {
-        reed?.setControls(notes: notes, pressure: pressure, brightness: brightness, sustain: sustain)
+    func setPerformance(
+        notes: [Int],
+        pressure: Float,
+        brightness: Float,
+        sustain: Float,
+        volume: Float,
+        sound: ReedSound
+    ) {
+        reed?.setControls(
+            notes: notes,
+            pressure: pressure,
+            brightness: brightness,
+            sustain: sustain,
+            volume: volume,
+            sound: sound
+        )
     }
 
     func stop() {

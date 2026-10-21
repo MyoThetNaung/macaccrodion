@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct ContentView: View {
@@ -22,7 +21,14 @@ struct ContentView: View {
             .frame(minHeight: 210, maxHeight: 300)
             airMeter
             sustainSlider
+            volumeSlider
+            soundPicker
             keys
+        }
+        .overlay(alignment: .bottomTrailing) {
+            TeamCredit(moving: model.direction != .still, pressure: model.pressure)
+                .padding(.trailing, 28)
+                .padding(.bottom, 14)
         }
         .padding(.horizontal, 28)
         .padding(.vertical, 18)
@@ -36,17 +42,6 @@ struct ContentView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 12) {
-            if let logo = AppLogo.image {
-                Image(nsImage: logo)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 46, height: 46)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color.white.opacity(0.35), lineWidth: 1)
-                    )
-            }
             Text("Accordion")
                 .font(.custom("Snell Roundhand", size: 44))
                 .foregroundStyle(
@@ -62,7 +57,6 @@ struct ContentView: View {
                 )
                 .shadow(color: .black.opacity(0.55), radius: 2, y: 1)
             Spacer()
-            helpButton
             VStack(alignment: .trailing, spacing: 4) {
                 if model.sensorAvailable {
                     Text("\(Int(model.angle.rounded()))°  \(model.directionLabel)")
@@ -75,6 +69,7 @@ struct ContentView: View {
                         .foregroundStyle(Color.white)
                 }
             }
+            helpButton
         }
     }
 
@@ -111,7 +106,7 @@ struct ContentView: View {
             Text("Sustain")
                 .font(.custom("Times New Roman", size: 15).weight(.bold))
                 .foregroundStyle(Lacquer.silver)
-                .frame(width: 64, alignment: .leading)
+                .frame(width: 72, alignment: .leading)
             Slider(
                 value: Binding(
                     get: { model.sustain },
@@ -126,6 +121,57 @@ struct ContentView: View {
                 .monospacedDigit()
                 .foregroundStyle(Lacquer.silver)
                 .frame(width: 44, alignment: .trailing)
+        }
+    }
+
+    private var volumeSlider: some View {
+        HStack(spacing: 12) {
+            Text("Volume")
+                .font(.custom("Times New Roman", size: 15).weight(.bold))
+                .foregroundStyle(Lacquer.silver)
+                .frame(width: 72, alignment: .leading)
+            Slider(
+                value: Binding(
+                    get: { model.volume },
+                    set: { model.setVolume($0) }
+                ),
+                in: 0...1
+            )
+            .tint(Lacquer.pearl)
+            .accessibilityLabel("Volume")
+            Text(model.volumeLabel)
+                .font(.custom("Times New Roman", size: 15))
+                .monospacedDigit()
+                .foregroundStyle(Lacquer.silver)
+                .frame(width: 44, alignment: .trailing)
+        }
+    }
+
+    private var soundPicker: some View {
+        HStack(spacing: 8) {
+            Text("Sound")
+                .font(.custom("Times New Roman", size: 15).weight(.bold))
+                .foregroundStyle(Lacquer.silver)
+                .frame(width: 72, alignment: .leading)
+            ForEach(ReedSound.allCases) { sound in
+                let selected = model.sound == sound
+                Button {
+                    model.setSound(sound)
+                } label: {
+                    Text(sound.title)
+                        .font(.custom("Times New Roman", size: 13).weight(.bold))
+                        .foregroundStyle(selected ? Color.black : Color.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule().fill(selected ? Color.white : Color.black.opacity(0.55))
+                        )
+                        .overlay(Capsule().stroke(Color.white.opacity(selected ? 1 : 0.45), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(sound.title) sound")
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
         }
     }
 
@@ -155,11 +201,21 @@ struct ContentView: View {
             showGuide.toggle()
         } label: {
             Text("?")
-                .font(.custom("Times New Roman", size: 22).weight(.bold))
-                .foregroundStyle(Color.white)
-                .frame(width: 36, height: 36)
+                .font(.custom("Times New Roman", size: 11).weight(.bold))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            Color(white: 0.98),
+                            Color(white: 0.78),
+                            Color(white: 0.52),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: 16, height: 16)
                 .background(Circle().fill(Color.black))
-                .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+                .overlay(Circle().stroke(Color(white: 0.78), lineWidth: 1))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Show playing guide")
@@ -233,15 +289,6 @@ struct ContentView: View {
     }
 }
 
-private enum AppLogo {
-    static let image: NSImage? = {
-        guard let url = Bundle.module.url(forResource: "AppLogo", withExtension: "jpg") else {
-            return nil
-        }
-        return NSImage(contentsOf: url)
-    }()
-}
-
 private struct GuideView: View {
     var notice: String?
 
@@ -258,7 +305,8 @@ private struct GuideView: View {
             guideLine("Hold a key, then open or close the MacBook lid. The instrument sounds only while the lid is moving, and it gets louder when the lid moves faster. A still lid is silent.")
             guideLine("Q W E R T Y U play octave 3. A S D F G H J play octave 4. Z X C V B N M play octave 5.")
             guideLine("Each octave button flips that row between normal and reverse, so the notes sit on closer keys.")
-            guideLine("Air shows how much the bellows are moving. Sustain lengthens the sound after the lid stops and after a key is released.")
+            guideLine("Air shows how much the bellows are moving. Sustain lengthens the sound after the lid stops and after a key is released. Volume sets the overall loudness.")
+            guideLine("Sound chooses the reed: Musette is the wet tremolo, Clarinet is a pure middle reed, Bassoon is dark and low, Violin is bright, and Bandoneon is a dry two-reed beat.")
         }
         .padding(20)
         .frame(width: 380, alignment: .leading)
@@ -276,6 +324,72 @@ private struct GuideView: View {
 private enum Lacquer {
     static let pearl = Color(white: 0.95)
     static let silver = Color(white: 0.72)
+}
+
+private struct TeamCredit: View {
+    var moving: Bool
+    var pressure: Double
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !moving)) { timeline in
+            mark
+                .foregroundStyle(platinum)
+                .overlay {
+                    GeometryReader { geo in
+                        let width = geo.size.width
+                        let band = width * 0.38
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0),
+                                Color.white.opacity(0.35),
+                                Color.white,
+                                Color.white.opacity(0.35),
+                                Color.white.opacity(0),
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: band)
+                        .offset(x: sweep(at: timeline.date) * (width + band) - band)
+                        .blendMode(.plusLighter)
+                    }
+                    .mask(mark)
+                    .opacity(moving ? 1 : 0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Tuned by SENA")
+        }
+    }
+
+    private var mark: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text("Tuned by")
+                .font(.custom("Times New Roman", size: 13).italic())
+            Text("SENA")
+                .font(.custom("Times New Roman", size: 16).weight(.bold))
+        }
+    }
+
+    private var platinum: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color(red: 0.99, green: 0.99, blue: 1.0),
+                Color(red: 0.84, green: 0.87, blue: 0.92),
+                Color(red: 0.96, green: 0.97, blue: 0.99),
+                Color(red: 0.62, green: 0.66, blue: 0.72),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private func sweep(at date: Date) -> CGFloat {
+        let period = 1.35 - min(0.7, pressure) * 0.65
+        let cycle = date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
+        return CGFloat(cycle)
+    }
 }
 
 private struct ShinyBlackBox: View {
@@ -394,13 +508,12 @@ private struct OrderButton: View {
     var body: some View {
         Button(action: action) {
             RoundFace(pressed: false, marked: reversed) {
-                VStack(spacing: 1) {
-                    Text("\(octave)")
-                        .font(.custom("Times New Roman", size: 16).weight(.bold))
-                    Text(reversed ? "Rev" : "Norm")
-                        .font(.custom("Times New Roman", size: 8).weight(.bold))
-                }
-                .foregroundStyle(Color.white)
+                Text(reversed ? "Reverse" : "Normal")
+                    .font(.custom("Times New Roman", size: 8).weight(.bold))
+                    .foregroundStyle(Color.white)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
         }
         .buttonStyle(.plain)

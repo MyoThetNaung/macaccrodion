@@ -16,7 +16,7 @@ enum AccordionMain {
 final class AccordionDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
-        if let url = Bundle.module.url(forResource: "AppLogo", withExtension: "jpg"),
+        if let url = Bundle.module.url(forResource: "AppLogo", withExtension: "png"),
            let image = NSImage(contentsOf: url) {
             NSApp.applicationIconImage = image
         }
