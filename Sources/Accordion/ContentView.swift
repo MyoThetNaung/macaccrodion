@@ -1,22 +1,28 @@
+import AppKit
 import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var model: AccordionModel
+    @State private var showGuide = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             header
+            if let message = model.message {
+                Text(message)
+                    .font(.custom("Times New Roman", size: 15))
+                    .foregroundStyle(Color(red: 1, green: 0.85, blue: 0.45))
+            }
             BellowsGraphic(
                 angle: model.angle,
                 pressure: model.pressure,
                 direction: model.direction
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .frame(minHeight: 210)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 210, maxHeight: 300)
             airMeter
             sustainSlider
             keys
-            instruction
         }
         .padding(.horizontal, 28)
         .padding(.vertical, 18)
@@ -29,7 +35,18 @@ struct ContentView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .center, spacing: 12) {
+            if let logo = AppLogo.image {
+                Image(nsImage: logo)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 46, height: 46)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                    )
+            }
             Text("Accordion")
                 .font(.custom("Snell Roundhand", size: 44))
                 .foregroundStyle(
@@ -45,6 +62,7 @@ struct ContentView: View {
                 )
                 .shadow(color: .black.opacity(0.55), radius: 2, y: 1)
             Spacer()
+            helpButton
             VStack(alignment: .trailing, spacing: 4) {
                 if model.sensorAvailable {
                     Text("\(Int(model.angle.rounded()))°  \(model.directionLabel)")
@@ -127,41 +145,27 @@ struct ContentView: View {
                 )
             }
         }
-        .padding(.vertical, 14)
-        .padding(.horizontal, 22)
-        .frame(maxWidth: .infinity)
-        .background(buttonBoard)
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(ShinyBlackBox())
     }
 
-    private var buttonBoard: some View {
-        RoundedRectangle(cornerRadius: 36, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [Color(white: 0.16), Color(white: 0.05), Color.black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 36, style: .continuous)
-                    .stroke(Color.white.opacity(0.16), lineWidth: 1)
-            )
-            .overlay(alignment: .top) {
-                Capsule()
-                    .fill(Color.white.opacity(0.14))
-                    .frame(height: 10)
-                    .padding(.horizontal, 48)
-                    .padding(.top, 8)
-                    .blur(radius: 1)
-            }
-            .shadow(color: .black.opacity(0.55), radius: 16, y: 8)
-    }
-
-    private var instruction: some View {
-        Text(model.message ?? "Hold a key, then open or close the lid. Each octave button flips that row so the notes sit on closer keys.")
-            .font(.custom("Times New Roman", size: 16))
-            .foregroundStyle(Lacquer.silver.opacity(0.9))
-            .frame(maxWidth: .infinity, alignment: .leading)
+    private var helpButton: some View {
+        Button {
+            showGuide.toggle()
+        } label: {
+            Text("?")
+                .font(.custom("Times New Roman", size: 22).weight(.bold))
+                .foregroundStyle(Color.white)
+                .frame(width: 36, height: 36)
+                .background(Circle().fill(Color.black))
+                .overlay(Circle().stroke(Color.white, lineWidth: 1.5))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Show playing guide")
+        .popover(isPresented: $showGuide, arrowEdge: .bottom) {
+            GuideView(notice: model.message)
+        }
     }
 
     private var stainedPlate: some View {
@@ -229,10 +233,120 @@ struct ContentView: View {
     }
 }
 
+private enum AppLogo {
+    static let image: NSImage? = {
+        guard let url = Bundle.module.url(forResource: "AppLogo", withExtension: "jpg") else {
+            return nil
+        }
+        return NSImage(contentsOf: url)
+    }()
+}
+
+private struct GuideView: View {
+    var notice: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("How to play")
+                .font(.custom("Snell Roundhand", size: 28))
+                .foregroundStyle(Color.white)
+            if let notice {
+                Text(notice)
+                    .font(.custom("Times New Roman", size: 15))
+                    .foregroundStyle(Color(red: 1, green: 0.85, blue: 0.45))
+            }
+            guideLine("Hold a key, then open or close the MacBook lid. The instrument sounds only while the lid is moving, and it gets louder when the lid moves faster. A still lid is silent.")
+            guideLine("Q W E R T Y U play octave 3. A S D F G H J play octave 4. Z X C V B N M play octave 5.")
+            guideLine("Each octave button flips that row between normal and reverse, so the notes sit on closer keys.")
+            guideLine("Air shows how much the bellows are moving. Sustain lengthens the sound after the lid stops and after a key is released.")
+        }
+        .padding(20)
+        .frame(width: 380, alignment: .leading)
+        .background(Color.black)
+    }
+
+    private func guideLine(_ text: String) -> some View {
+        Text(text)
+            .font(.custom("Times New Roman", size: 15))
+            .foregroundStyle(Color.white.opacity(0.9))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
 private enum Lacquer {
     static let pearl = Color(white: 0.95)
     static let silver = Color(white: 0.72)
-    static let ink = Color(white: 0.14)
+}
+
+private struct ShinyBlackBox: View {
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.black)
+                .offset(y: 5)
+
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(white: 0.22),
+                            Color(white: 0.08),
+                            Color(white: 0.03),
+                            Color.black,
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+
+            Ellipse()
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.28), Color.white.opacity(0.02), Color.clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(height: 36)
+                .padding(.horizontal, 28)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.top, 7)
+                .blur(radius: 0.4)
+
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.7),
+                            Color.white.opacity(0.16),
+                            Color.black,
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1.5
+                )
+
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.black.opacity(0.85), lineWidth: 4)
+                .padding(3)
+                .blur(radius: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .shadow(color: .black.opacity(0.75), radius: 10, y: 6)
+        .shadow(color: Color.white.opacity(0.12), radius: 1, y: -1)
+    }
+}
+
+private enum NoteLayout {
+    static let buttonWidth: CGFloat = 58
+    static let pitch: CGFloat = buttonWidth + 10
+    static let groupWidth: CGFloat = (7 - 0.5) * pitch + buttonWidth
+
+    static func origin(in width: CGFloat) -> CGFloat {
+        let centered = (width - groupWidth) / 2
+        return min(max(80, centered), max(0, width - groupWidth))
+    }
 }
 
 private struct SpreadKeyRow: View {
@@ -245,20 +359,14 @@ private struct SpreadKeyRow: View {
     let isHeld: (UInt16) -> Bool
     let toggle: () -> Void
 
-    private let buttonWidth: CGFloat = 54
     private let rowHeight: CGFloat = 76
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             GeometryReader { geometry in
                 let staggered = !rowIndex.isMultiple(of: 2)
-                let fitted = (geometry.size.width - buttonWidth) / (CGFloat(keys.count) - 0.5)
-                let gap = max(8, (fitted - buttonWidth) * 0.82)
-                let pitch = buttonWidth + gap
-                let groupWidth = (CGFloat(keys.count) - 0.5) * pitch + buttonWidth
-                let centered = (geometry.size.width - groupWidth) / 2
-                let origin = min(max(64, centered), max(64, geometry.size.width - groupWidth))
-                let shift = staggered ? pitch * 0.5 : 0
+                let origin = NoteLayout.origin(in: geometry.size.width)
+                let shift = staggered ? NoteLayout.pitch * 0.5 : 0
                 ZStack(alignment: .topLeading) {
                     ForEach(Array(keys.enumerated()), id: \.element.id) { index, key in
                         RoundKey(
@@ -267,7 +375,7 @@ private struct SpreadKeyRow: View {
                             held: isHeld(key.id),
                             pressure: pressure
                         )
-                        .offset(x: origin + shift + CGFloat(index) * pitch)
+                        .offset(x: origin + shift + CGFloat(index) * NoteLayout.pitch)
                     }
                 }
             }
@@ -285,14 +393,14 @@ private struct OrderButton: View {
 
     var body: some View {
         Button(action: action) {
-            RoundFace(pressed: false, dark: !reversed) {
+            RoundFace(pressed: false, marked: reversed) {
                 VStack(spacing: 1) {
                     Text("\(octave)")
                         .font(.custom("Times New Roman", size: 16).weight(.bold))
                     Text(reversed ? "Rev" : "Norm")
                         .font(.custom("Times New Roman", size: 8).weight(.bold))
                 }
-                .foregroundStyle(reversed ? Lacquer.ink : Color.white)
+                .foregroundStyle(Color.white)
             }
         }
         .buttonStyle(.plain)
@@ -308,16 +416,16 @@ private struct RoundKey: View {
 
     var body: some View {
         VStack(spacing: 3) {
-            RoundFace(pressed: held, dark: false) {
+            RoundFace(pressed: held) {
                 VStack(spacing: 2) {
                     Text(note)
                         .font(.custom("Times New Roman", size: 12).weight(.bold))
-                        .foregroundStyle(Lacquer.ink)
+                        .foregroundStyle(Color.white)
                     Circle()
                         .fill(Color.white)
                         .frame(width: 5, height: 5)
                         .shadow(color: .white.opacity(held ? 0.9 : 0), radius: 3)
-                        .opacity(held ? 0.4 + pressure * 0.6 : 0.2)
+                        .opacity(held ? 0.45 + pressure * 0.55 : 0.28)
                 }
             }
             Text(letter)
@@ -333,77 +441,50 @@ private struct RoundKey: View {
 
 private struct RoundFace<Content: View>: View {
     var pressed: Bool
-    var dark: Bool
+    var marked: Bool = false
     @ViewBuilder var content: () -> Content
 
     var body: some View {
         ZStack {
             Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [Color(white: 0.22), Color.black],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(width: 52, height: 52)
-                .offset(y: 4)
+                .stroke(Color.white, lineWidth: marked ? 4 : 2.5)
+                .frame(width: 56, height: 56)
+                .offset(y: pressed ? 3 : 0)
 
             content()
-                .frame(width: 50, height: 50)
+                .frame(width: 48, height: 48)
                 .background(face)
                 .clipShape(Circle())
-                .overlay(Circle().stroke(Color.white.opacity(pressed ? 0.2 : 0.72), lineWidth: 1))
-                .overlay(alignment: .top) {
-                    Capsule()
-                        .fill(Color.white.opacity(pressed ? 0.22 : 0.9))
-                        .frame(width: 22, height: 7)
-                        .padding(.top, 6)
-                }
-                .shadow(color: .white.opacity(pressed ? 0.04 : 0.28), radius: 2, y: -1)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(pressed ? 0.35 : 0.7), lineWidth: 1)
+                )
                 .offset(y: pressed ? 3 : 0)
         }
-        .frame(width: 54, height: 58)
-        .shadow(color: .black.opacity(pressed ? 0.35 : 0.6), radius: pressed ? 2 : 5, y: pressed ? 1 : 4)
+        .frame(width: 58, height: 62)
+        .shadow(color: .black.opacity(pressed ? 0.35 : 0.55), radius: pressed ? 2 : 4, y: pressed ? 1 : 3)
         .animation(.easeOut(duration: 0.07), value: pressed)
     }
 
     private var face: some View {
         ZStack {
-            Circle().fill(base)
-            Circle().fill(
-                RadialGradient(
-                    colors: [Color.white.opacity(dark ? 0.08 : 0.45), Color.clear],
-                    center: UnitPoint(x: 0.35, y: 0.28),
-                    startRadius: 1,
-                    endRadius: 28
-                )
-            )
             Circle().fill(
                 LinearGradient(
-                    colors: [Color.clear, Color.black.opacity(dark ? 0.45 : 0.16)],
+                    colors: pressed
+                        ? [Color(white: 0.08), Color.black]
+                        : [Color(white: 0.16), Color(white: 0.05), Color.black],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             )
-        }
-    }
-
-    private var base: LinearGradient {
-        if dark {
-            return LinearGradient(
-                colors: [Color(white: 0.34), Color(white: 0.12), Color(white: 0.04)],
-                startPoint: .top,
-                endPoint: .bottom
+            Circle().fill(
+                LinearGradient(
+                    colors: [Color.white.opacity(pressed ? 0.05 : 0.14), Color.clear],
+                    startPoint: .top,
+                    endPoint: .center
+                )
             )
         }
-        return LinearGradient(
-            colors: pressed
-                ? [Color(white: 0.78), Color(white: 0.62), Color(white: 0.7)]
-                : [Color.white, Color(white: 0.9), Color(white: 0.74), Color(white: 0.96)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
     }
 }
 

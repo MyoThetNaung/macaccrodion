@@ -16,6 +16,10 @@ enum AccordionMain {
 final class AccordionDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
+        if let url = Bundle.module.url(forResource: "AppLogo", withExtension: "jpg"),
+           let image = NSImage(contentsOf: url) {
+            NSApp.applicationIconImage = image
+        }
         NSApp.activate()
         showWindows()
         DispatchQueue.main.async {

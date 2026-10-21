@@ -12,6 +12,9 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "Accordion",
+            resources: [
+                .process("Resources")
+            ],
             linkerSettings: [
                 .linkedFramework("IOKit"),
                 .linkedFramework("AVFoundation"),
