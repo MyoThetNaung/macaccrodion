@@ -115,29 +115,20 @@ struct ContentView: View {
         VStack(spacing: 8) {
             ForEach(Array(AccordionKey.rows.enumerated()), id: \.element.first?.id) { rowIndex, row in
                 let octave = row.first?.octave ?? 0
-                let reversed = model.isReversed(octave)
-                HStack(spacing: 16) {
-                    OrderButton(octave: octave, reversed: reversed) {
-                        model.toggleOrder(octave: octave)
-                    }
-                    HStack(spacing: 8) {
-                        ForEach(row) { key in
-                            let held = model.heldKeyCodes.contains(key.id)
-                            RoundKey(
-                                letter: key.letter,
-                                note: model.noteName(for: key),
-                                held: held,
-                                pressure: model.pressure
-                            )
-                        }
-                    }
-                    .padding(.leading, rowIndex.isMultiple(of: 2) ? 0 : 29)
-                    .padding(.trailing, rowIndex.isMultiple(of: 2) ? 29 : 0)
-                }
+                SpreadKeyRow(
+                    rowIndex: rowIndex,
+                    octave: octave,
+                    reversed: model.isReversed(octave),
+                    keys: row,
+                    pressure: model.pressure,
+                    noteName: { model.noteName(for: $0) },
+                    isHeld: { model.heldKeyCodes.contains($0) },
+                    toggle: { model.toggleOrder(octave: octave) }
+                )
             }
         }
         .padding(.vertical, 14)
-        .padding(.horizontal, 26)
+        .padding(.horizontal, 22)
         .frame(maxWidth: .infinity)
         .background(buttonBoard)
     }
@@ -242,6 +233,49 @@ private enum Lacquer {
     static let pearl = Color(white: 0.95)
     static let silver = Color(white: 0.72)
     static let ink = Color(white: 0.14)
+}
+
+private struct SpreadKeyRow: View {
+    let rowIndex: Int
+    let octave: Int
+    let reversed: Bool
+    let keys: [AccordionKey]
+    let pressure: Double
+    let noteName: (AccordionKey) -> String
+    let isHeld: (UInt16) -> Bool
+    let toggle: () -> Void
+
+    private let buttonWidth: CGFloat = 54
+    private let rowHeight: CGFloat = 76
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            GeometryReader { geometry in
+                let staggered = !rowIndex.isMultiple(of: 2)
+                let fitted = (geometry.size.width - buttonWidth) / (CGFloat(keys.count) - 0.5)
+                let gap = max(8, (fitted - buttonWidth) * 0.82)
+                let pitch = buttonWidth + gap
+                let groupWidth = (CGFloat(keys.count) - 0.5) * pitch + buttonWidth
+                let centered = (geometry.size.width - groupWidth) / 2
+                let origin = min(max(64, centered), max(64, geometry.size.width - groupWidth))
+                let shift = staggered ? pitch * 0.5 : 0
+                ZStack(alignment: .topLeading) {
+                    ForEach(Array(keys.enumerated()), id: \.element.id) { index, key in
+                        RoundKey(
+                            letter: key.letter,
+                            note: noteName(key),
+                            held: isHeld(key.id),
+                            pressure: pressure
+                        )
+                        .offset(x: origin + shift + CGFloat(index) * pitch)
+                    }
+                }
+            }
+            .frame(height: rowHeight)
+            OrderButton(octave: octave, reversed: reversed, action: toggle)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
 private struct OrderButton: View {
