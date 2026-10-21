@@ -4,43 +4,57 @@ struct ContentView: View {
     @ObservedObject var model: AccordionModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 12) {
             header
             BellowsGraphic(
                 angle: model.angle,
                 pressure: model.pressure,
                 direction: model.direction
             )
-            .frame(height: 168)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(minHeight: 210)
             airMeter
             sustainSlider
             keys
             instruction
         }
-        .padding(28)
-        .frame(minWidth: 820, minHeight: 740)
+        .padding(.horizontal, 28)
+        .padding(.vertical, 18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(background)
+        .background(stainedPlate)
+        .padding(12)
+        .frame(minWidth: 860)
+        .background(Color.black.ignoresSafeArea())
         .preferredColorScheme(.dark)
     }
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             Text("Accordion")
-                .font(.system(size: 34, weight: .medium, design: .serif))
-                .foregroundStyle(Lacquer.pearl)
-                .shadow(color: .white.opacity(0.18), radius: 0, y: 1)
+                .font(.custom("Snell Roundhand", size: 44))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 1.0, green: 0.93, blue: 0.62),
+                            Color(red: 0.86, green: 0.66, blue: 0.22),
+                            Color(red: 0.62, green: 0.44, blue: 0.12),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .shadow(color: .black.opacity(0.55), radius: 2, y: 1)
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
                 if model.sensorAvailable {
                     Text("\(Int(model.angle.rounded()))°  \(model.directionLabel)")
-                        .font(.system(size: 22, weight: .medium, design: .serif))
+                        .font(.custom("Times New Roman", size: 22))
                         .monospacedDigit()
-                        .foregroundStyle(model.direction == .still ? Lacquer.silver : Lacquer.pearl)
+                        .foregroundStyle(model.direction == .still ? Color.white.opacity(0.62) : Color.white)
                 } else {
                     Text("No lid sensor")
-                        .font(.system(size: 18, weight: .medium, design: .serif))
-                        .foregroundStyle(Lacquer.silver)
+                        .font(.custom("Times New Roman", size: 18))
+                        .foregroundStyle(Color.white)
                 }
             }
         }
@@ -49,7 +63,7 @@ struct ContentView: View {
     private var airMeter: some View {
         HStack(spacing: 12) {
             Text("Air")
-                .font(.system(size: 13, weight: .semibold, design: .serif))
+                .font(.custom("Times New Roman", size: 15).weight(.bold))
                 .foregroundStyle(Lacquer.silver)
                 .frame(width: 32, alignment: .leading)
             GeometryReader { geometry in
@@ -77,7 +91,7 @@ struct ContentView: View {
     private var sustainSlider: some View {
         HStack(spacing: 12) {
             Text("Sustain")
-                .font(.system(size: 13, weight: .semibold, design: .serif))
+                .font(.custom("Times New Roman", size: 15).weight(.bold))
                 .foregroundStyle(Lacquer.silver)
                 .frame(width: 64, alignment: .leading)
             Slider(
@@ -90,7 +104,7 @@ struct ContentView: View {
             .tint(Lacquer.pearl)
             .accessibilityLabel("Sustain")
             Text(model.sustainLabel)
-                .font(.system(size: 13, weight: .medium, design: .serif))
+                .font(.custom("Times New Roman", size: 15))
                 .monospacedDigit()
                 .foregroundStyle(Lacquer.silver)
                 .frame(width: 44, alignment: .trailing)
@@ -99,59 +113,135 @@ struct ContentView: View {
 
     private var keys: some View {
         VStack(spacing: 8) {
-            ForEach(AccordionKey.rows, id: \.first?.id) { row in
+            ForEach(Array(AccordionKey.rows.enumerated()), id: \.element.first?.id) { rowIndex, row in
                 let octave = row.first?.octave ?? 0
                 let reversed = model.isReversed(octave)
-                HStack(spacing: 8) {
+                HStack(spacing: 16) {
                     OrderButton(octave: octave, reversed: reversed) {
                         model.toggleOrder(octave: octave)
                     }
-                    ForEach(row) { key in
-                        let held = model.heldKeyCodes.contains(key.id)
-                        KeyCap(
-                            letter: key.letter,
-                            note: model.noteName(for: key),
-                            held: held,
-                            pressure: model.pressure
-                        )
+                    HStack(spacing: 8) {
+                        ForEach(row) { key in
+                            let held = model.heldKeyCodes.contains(key.id)
+                            RoundKey(
+                                letter: key.letter,
+                                note: model.noteName(for: key),
+                                held: held,
+                                pressure: model.pressure
+                            )
+                        }
                     }
+                    .padding(.leading, rowIndex.isMultiple(of: 2) ? 0 : 29)
+                    .padding(.trailing, rowIndex.isMultiple(of: 2) ? 29 : 0)
                 }
             }
         }
+        .padding(.vertical, 14)
+        .padding(.horizontal, 26)
+        .frame(maxWidth: .infinity)
+        .background(buttonBoard)
+    }
+
+    private var buttonBoard: some View {
+        RoundedRectangle(cornerRadius: 36, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [Color(white: 0.16), Color(white: 0.05), Color.black],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 36, style: .continuous)
+                    .stroke(Color.white.opacity(0.16), lineWidth: 1)
+            )
+            .overlay(alignment: .top) {
+                Capsule()
+                    .fill(Color.white.opacity(0.14))
+                    .frame(height: 10)
+                    .padding(.horizontal, 48)
+                    .padding(.top, 8)
+                    .blur(radius: 1)
+            }
+            .shadow(color: .black.opacity(0.55), radius: 16, y: 8)
     }
 
     private var instruction: some View {
         Text(model.message ?? "Hold a key, then open or close the lid. Each octave button flips that row so the notes sit on closer keys.")
-            .font(.system(size: 15, weight: .regular, design: .serif))
+            .font(.custom("Times New Roman", size: 16))
             .foregroundStyle(Lacquer.silver.opacity(0.9))
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var background: some View {
+    private var stainedPlate: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(white: 0.16), Color(white: 0.05), Color.black],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            RadialGradient(
-                colors: [Color.white.opacity(0.14), Color.clear],
-                center: .top,
-                startRadius: 20,
-                endRadius: 520
-            )
+            RoundedRectangle(cornerRadius: 36, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(white: 0.42), Color(white: 0.12), Color.black],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(white: 0.11),
+                            Color(white: 0.045),
+                            Color(white: 0.02),
+                            Color.black,
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .padding(9)
+
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        stops: [
+                            .init(color: Color.white.opacity(0.08), location: 0),
+                            .init(color: Color.clear, location: 0.2),
+                            .init(color: Color.white.opacity(0.04), location: 0.42),
+                            .init(color: Color.clear, location: 0.6),
+                            .init(color: Color.black.opacity(0.4), location: 1),
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .padding(9)
+
+            Ellipse()
+                .fill(
+                    RadialGradient(
+                        colors: [Color.white.opacity(0.18), Color.clear],
+                        center: .center,
+                        startRadius: 8,
+                        endRadius: 340
+                    )
+                )
+                .frame(height: 120)
+                .padding(.horizontal, 40)
+                .offset(y: -310)
+                .blur(radius: 4)
+
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(Color.black.opacity(0.9), lineWidth: 3)
+                .padding(9)
         }
+        .clipShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
+        .shadow(color: .black.opacity(0.9), radius: 16, y: 10)
     }
 }
 
 private enum Lacquer {
     static let pearl = Color(white: 0.95)
     static let silver = Color(white: 0.72)
-    static let ink = Color(white: 0.12)
-    static let ivoryTop = Color(white: 0.98)
-    static let ivoryMid = Color(white: 0.86)
-    static let ivoryStain = Color(white: 0.70)
-    static let edge = Color(white: 0.42)
+    static let ink = Color(white: 0.14)
 }
 
 private struct OrderButton: View {
@@ -161,55 +251,45 @@ private struct OrderButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 4) {
-                Text("Oct \(octave)")
-                    .font(.system(size: 12, weight: .semibold, design: .serif))
-                Text(reversed ? "Reverse" : "Normal")
-                    .font(.system(size: 13, weight: .bold, design: .serif))
+            RoundFace(pressed: false, dark: !reversed) {
+                VStack(spacing: 1) {
+                    Text("\(octave)")
+                        .font(.custom("Times New Roman", size: 16).weight(.bold))
+                    Text(reversed ? "Rev" : "Norm")
+                        .font(.custom("Times New Roman", size: 8).weight(.bold))
+                }
+                .foregroundStyle(reversed ? Lacquer.ink : Color.white)
             }
         }
-        .buttonStyle(LacquerButtonStyle(dark: reversed))
-        .frame(width: 78)
+        .buttonStyle(.plain)
         .accessibilityLabel("Octave \(octave) \(reversed ? "reverse" : "normal") order")
     }
 }
 
-private struct LacquerButtonStyle: ButtonStyle {
-    var dark: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        LacquerPlate(pressed: configuration.isPressed, dark: dark) {
-            configuration.label
-                .foregroundStyle(dark ? Lacquer.pearl : Lacquer.ink)
-        }
-    }
-}
-
-private struct KeyCap: View {
+private struct RoundKey: View {
     let letter: String
     let note: String
     let held: Bool
     let pressure: Double
 
     var body: some View {
-        LacquerPlate(pressed: held, dark: false) {
-            VStack(spacing: 4) {
-                HStack {
-                    Text(letter)
-                        .font(.system(size: 12, weight: .bold, design: .serif))
-                        .foregroundStyle(Lacquer.ink.opacity(0.45))
-                    Spacer()
+        VStack(spacing: 3) {
+            RoundFace(pressed: held, dark: false) {
+                VStack(spacing: 2) {
+                    Text(note)
+                        .font(.custom("Times New Roman", size: 12).weight(.bold))
+                        .foregroundStyle(Lacquer.ink)
                     Circle()
                         .fill(Color.white)
-                        .frame(width: 7, height: 7)
-                        .shadow(color: .white.opacity(held ? 0.9 : 0), radius: 4)
-                        .opacity(held ? 0.45 + pressure * 0.55 : 0.18)
+                        .frame(width: 5, height: 5)
+                        .shadow(color: .white.opacity(held ? 0.9 : 0), radius: 3)
+                        .opacity(held ? 0.4 + pressure * 0.6 : 0.2)
                 }
-                Spacer(minLength: 0)
-                Text(note)
-                    .font(.system(size: 22, weight: .semibold, design: .serif))
-                    .foregroundStyle(Lacquer.ink)
             }
+            Text(letter)
+                .font(.custom("Times New Roman", size: 9).weight(.bold))
+                .foregroundStyle(Color.white.opacity(0.88))
+                .frame(width: 54)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(letter) plays \(note)")
@@ -217,98 +297,76 @@ private struct KeyCap: View {
     }
 }
 
-private struct LacquerPlate<Content: View>: View {
+private struct RoundFace<Content: View>: View {
     var pressed: Bool
     var dark: Bool
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        ZStack(alignment: .top) {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
+        ZStack {
+            Circle()
                 .fill(
                     LinearGradient(
-                        colors: [Color(white: 0.28), Color.black],
+                        colors: [Color(white: 0.22), Color.black],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
-                .frame(maxWidth: .infinity)
-                .frame(height: 72)
-                .offset(y: 5)
+                .frame(width: 52, height: 52)
+                .offset(y: 4)
 
             content()
-                .padding(.horizontal, 8)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity)
-                .frame(height: 72)
+                .frame(width: 50, height: 50)
                 .background(face)
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .stroke(Color.white.opacity(pressed ? 0.12 : 0.55), lineWidth: 1)
-                )
-                .shadow(color: .white.opacity(pressed ? 0.05 : 0.28), radius: pressed ? 1 : 3, y: pressed ? 0 : -1)
-                .offset(y: pressed ? 4 : 0)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.white.opacity(pressed ? 0.2 : 0.72), lineWidth: 1))
+                .overlay(alignment: .top) {
+                    Capsule()
+                        .fill(Color.white.opacity(pressed ? 0.22 : 0.9))
+                        .frame(width: 22, height: 7)
+                        .padding(.top, 6)
+                }
+                .shadow(color: .white.opacity(pressed ? 0.04 : 0.28), radius: 2, y: -1)
+                .offset(y: pressed ? 3 : 0)
         }
-        .frame(height: 72, alignment: .top)
-        .shadow(color: .black.opacity(pressed ? 0.35 : 0.65), radius: pressed ? 2 : 7, y: pressed ? 1 : 5)
+        .frame(width: 54, height: 58)
+        .shadow(color: .black.opacity(pressed ? 0.35 : 0.6), radius: pressed ? 2 : 5, y: pressed ? 1 : 4)
         .animation(.easeOut(duration: 0.07), value: pressed)
     }
 
     private var face: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(base)
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(stain)
-            LinearGradient(
-                colors: [
-                    Color.white.opacity(pressed ? 0.18 : 0.75),
-                    Color.white.opacity(pressed ? 0.02 : 0.08),
-                    Color.clear,
-                ],
-                startPoint: .top,
-                endPoint: .center
+            Circle().fill(base)
+            Circle().fill(
+                RadialGradient(
+                    colors: [Color.white.opacity(dark ? 0.08 : 0.45), Color.clear],
+                    center: UnitPoint(x: 0.35, y: 0.28),
+                    startRadius: 1,
+                    endRadius: 28
+                )
             )
-            VStack {
-                Capsule()
-                    .fill(Color.white.opacity(pressed ? 0.2 : 0.85))
-                    .frame(height: 3)
-                    .padding(.horizontal, 10)
-                    .padding(.top, 5)
-                Spacer()
-            }
+            Circle().fill(
+                LinearGradient(
+                    colors: [Color.clear, Color.black.opacity(dark ? 0.45 : 0.16)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
         }
     }
 
     private var base: LinearGradient {
         if dark {
             return LinearGradient(
-                colors: pressed
-                    ? [Color(white: 0.16), Color(white: 0.05)]
-                    : [Color(white: 0.28), Color(white: 0.08), Color.black],
+                colors: [Color(white: 0.34), Color(white: 0.12), Color(white: 0.04)],
                 startPoint: .top,
                 endPoint: .bottom
             )
         }
         return LinearGradient(
             colors: pressed
-                ? [Lacquer.ivoryMid, Lacquer.ivoryStain, Color(white: 0.62)]
-                : [Lacquer.ivoryTop, Lacquer.ivoryMid, Lacquer.ivoryStain, Color(white: 0.93)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    }
-
-    private var stain: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color.black.opacity(dark ? 0.15 : 0.02),
-                Color.clear,
-                Color.black.opacity(dark ? 0.35 : 0.10),
-                Color.clear,
-                Color.black.opacity(0.08),
-            ],
+                ? [Color(white: 0.78), Color(white: 0.62), Color(white: 0.7)]
+                : [Color.white, Color(white: 0.9), Color(white: 0.74), Color(white: 0.96)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -323,99 +381,100 @@ private struct BellowsGraphic: View {
     var body: some View {
         Canvas { context, size in
             let open = min(1, max(0, angle / 135))
-            let motion: CGFloat
+            let squeeze: CGFloat
             switch direction {
             case .push:
-                motion = -CGFloat(pressure) * 0.07
+                squeeze = CGFloat(pressure) * 0.09
             case .pull:
-                motion = CGFloat(pressure) * 0.045
+                squeeze = -CGFloat(pressure) * 0.05
             case .still:
-                motion = 0
+                squeeze = 0
             }
-            let travel = min(1, max(0.38, 0.42 + 0.56 * open + motion))
-            let instrumentWidth = size.width * travel
-            let originX = (size.width - instrumentWidth) / 2
-            let capWidth = min(78, instrumentWidth * 0.16)
-            let height = size.height * 0.70
-            let top = (size.height - height) / 2
-            let bottom = top + height
-            let capTop = top - 18
-            let capHeight = height + 36
+            let reach = min(0.98, max(0.36, 0.38 + 0.60 * open - squeeze))
+            let margin: CGFloat = 4
+            let available = size.width - margin * 2
+            let span = available * reach
+            let origin = margin + (available - span) / 2
+            let capWidth = min(46, span * 0.11)
+            let top = size.height * 0.16
+            let bottom = size.height * 0.84
+            let puff = 14 + CGFloat(pressure) * 10
 
-            let leftCap = CGRect(x: originX, y: capTop, width: capWidth, height: capHeight)
-            let rightCap = CGRect(x: originX + instrumentWidth - capWidth, y: capTop, width: capWidth, height: capHeight)
-            fillCap(context, rect: leftCap)
-            fillCap(context, rect: rightCap)
+            let capTop = max(1, top - 10)
+            let capHeight = min(size.height - 2, bottom + 10) - capTop
+            let leftCap = CGRect(x: origin, y: capTop, width: capWidth, height: capHeight)
+            let rightCap = CGRect(x: origin + span - capWidth, y: capTop, width: capWidth, height: capHeight)
+            drawCap(context, rect: leftCap)
+            drawCap(context, rect: rightCap)
 
-            let foldsLeft = leftCap.maxX - 2
-            let foldsRight = rightCap.minX + 2
-            let span = max(8, foldsRight - foldsLeft)
-            let foldCount = 16
-            let black = Color(white: 0.05)
-            let pearl = Color(white: 0.92)
-            let shadow = Color(white: 0.28)
-
-            let backing = Path(roundedRect: CGRect(x: foldsLeft, y: top, width: span, height: height), cornerRadius: 2)
-            context.fill(backing, with: .color(Color.black))
+            let foldStart = leftCap.maxX - 1
+            let foldEnd = rightCap.minX + 1
+            let foldCount = 24
+            let foldWidth = max(2, (foldEnd - foldStart) / CGFloat(foldCount))
+            var topEdge = Path()
+            var bottomEdge = Path()
+            topEdge.move(to: CGPoint(x: foldStart, y: top))
+            bottomEdge.move(to: CGPoint(x: foldStart, y: bottom))
 
             for index in 0..<foldCount {
-                let x0 = foldsLeft + span * CGFloat(index) / CGFloat(foldCount)
-                let x1 = foldsLeft + span * CGFloat(index + 1) / CGFloat(foldCount)
-                let mid = (x0 + x1) / 2
-                var pleat = Path()
-                let pointsUp = index.isMultiple(of: 2)
-                if pointsUp {
-                    pleat.move(to: CGPoint(x: x0, y: top))
-                    pleat.addLine(to: CGPoint(x: x1, y: top))
-                    pleat.addLine(to: CGPoint(x: mid, y: bottom))
-                } else {
-                    pleat.move(to: CGPoint(x: x0, y: bottom))
-                    pleat.addLine(to: CGPoint(x: x1, y: bottom))
-                    pleat.addLine(to: CGPoint(x: mid, y: top))
-                }
-                pleat.closeSubpath()
-                context.fill(pleat, with: .color(pointsUp ? black : pearl))
-                if !pointsUp {
-                    var shine = Path()
-                    shine.move(to: CGPoint(x: x0 + 1, y: bottom - 2))
-                    shine.addLine(to: CGPoint(x: mid, y: top + 8))
-                    shine.addLine(to: CGPoint(x: x1 - 1, y: bottom - 2))
-                    context.stroke(shine, with: .color(Color.white.opacity(0.55)), lineWidth: 1)
-                } else {
-                    context.fill(pleat, with: .color(shadow.opacity(0.25)))
-                }
+                let start = foldStart + foldWidth * CGFloat(index)
+                let end = start + foldWidth
+                let ridge = (start + end) / 2
+                let tuck = min(puff, foldWidth * 0.46)
+                let shadow = index.isMultiple(of: 2) ? 0.10 : 0.18
+                let light = shadow + 0.10
+
+                var nearFace = Path()
+                nearFace.move(to: CGPoint(x: start, y: top))
+                nearFace.addLine(to: CGPoint(x: ridge, y: top + tuck))
+                nearFace.addLine(to: CGPoint(x: ridge, y: bottom - tuck))
+                nearFace.addLine(to: CGPoint(x: start, y: bottom))
+                nearFace.closeSubpath()
+                context.fill(nearFace, with: .color(Color(white: shadow)))
+
+                var farFace = Path()
+                farFace.move(to: CGPoint(x: ridge, y: top + tuck))
+                farFace.addLine(to: CGPoint(x: end, y: top))
+                farFace.addLine(to: CGPoint(x: end, y: bottom))
+                farFace.addLine(to: CGPoint(x: ridge, y: bottom - tuck))
+                farFace.closeSubpath()
+                context.fill(farFace, with: .color(Color(white: light)))
+
+                topEdge.addLine(to: CGPoint(x: ridge, y: top + tuck))
+                topEdge.addLine(to: CGPoint(x: end, y: top))
+                bottomEdge.addLine(to: CGPoint(x: ridge, y: bottom - tuck))
+                bottomEdge.addLine(to: CGPoint(x: end, y: bottom))
+
+                var crease = Path()
+                crease.move(to: CGPoint(x: ridge, y: top + tuck * 0.55))
+                crease.addLine(to: CGPoint(x: ridge, y: bottom - tuck * 0.55))
+                context.stroke(crease, with: .color(Color.white.opacity(0.28)), lineWidth: 1)
             }
 
-            if pressure > 0.03 {
-                let glow = CGRect(x: foldsLeft, y: top, width: span, height: height)
-                context.fill(
-                    Path(glow),
-                    with: .color(Color.white.opacity(0.14 * pressure))
-                )
-            }
+            context.stroke(topEdge, with: .color(Color.white.opacity(0.55)), lineWidth: 1.4)
+            context.stroke(bottomEdge, with: .color(Color.white.opacity(0.28)), lineWidth: 1.2)
         }
         .accessibilityLabel("Bellows")
     }
 
-    private func fillCap(_ context: GraphicsContext, rect: CGRect) {
-        let shape = Path(roundedRect: rect, cornerRadius: 10)
+    private func drawCap(_ context: GraphicsContext, rect: CGRect) {
+        let plate = Path(roundedRect: rect, cornerRadius: 8)
         context.fill(
-            shape,
+            plate,
             with: .linearGradient(
-                Gradient(colors: [Color(white: 0.30), Color(white: 0.08), Color.black]),
+                Gradient(colors: [Color(white: 0.34), Color(white: 0.08), Color.black]),
                 startPoint: CGPoint(x: rect.midX, y: rect.minY),
                 endPoint: CGPoint(x: rect.midX, y: rect.maxY)
             )
         )
-        let inset = rect.insetBy(dx: 7, dy: 8)
         context.stroke(
-            Path(roundedRect: inset, cornerRadius: 7),
-            with: .color(Color(white: 0.78)),
-            lineWidth: 1.5
+            Path(roundedRect: rect.insetBy(dx: 5, dy: 6), cornerRadius: 5),
+            with: .color(Color(white: 0.78).opacity(0.85)),
+            lineWidth: 1.2
         )
-        var highlight = Path()
-        highlight.move(to: CGPoint(x: rect.minX + 12, y: rect.minY + 8))
-        highlight.addLine(to: CGPoint(x: rect.maxX - 12, y: rect.minY + 8))
-        context.stroke(highlight, with: .color(Color.white.opacity(0.45)), lineWidth: 2)
+        var gleam = Path()
+        gleam.move(to: CGPoint(x: rect.minX + 8, y: rect.minY + 6))
+        gleam.addLine(to: CGPoint(x: rect.maxX - 8, y: rect.minY + 6))
+        context.stroke(gleam, with: .color(Color.white.opacity(0.4)), lineWidth: 1.5)
     }
 }
