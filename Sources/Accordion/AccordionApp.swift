@@ -41,6 +41,6 @@ struct AccordionApp: App {
             ContentView(model: model)
                 .onAppear { model.start() }
         }
-        .defaultSize(width: 900, height: 760)
+        .defaultSize(width: 900, height: 800)
     }
 }

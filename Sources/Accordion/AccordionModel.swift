@@ -8,6 +8,7 @@ final class AccordionModel: ObservableObject {
     @Published private(set) var direction: BellowsDirection = .still
     @Published private(set) var heldKeyCodes: Set<UInt16> = []
     @Published private(set) var reversedOctaves: Set<Int> = []
+    @Published private(set) var sustain: Double = 0.15
     @Published private(set) var sensorAvailable = true
     @Published private(set) var message: String?
 
@@ -20,6 +21,10 @@ final class AccordionModel: ObservableObject {
     private var noteBuffer: [Int] = []
     private var started = false
     private var announcedSensor = false
+
+    var sustainLabel: String {
+        String(format: "%.1fs", Sustain.seconds(for: sustain))
+    }
 
     var directionLabel: String {
         switch direction {
@@ -155,6 +160,12 @@ final class AccordionModel: ObservableObject {
         key.note(reversed: isReversed(key.octave))
     }
 
+    func setSustain(_ value: Double) {
+        sustain = min(1, max(0, value))
+        bellows.sustain = sustain
+        pushSynth(pressure: pressure, brightness: bellows.state.brightness)
+    }
+
     func toggleOrder(octave: Int) {
         if reversedOctaves.contains(octave) {
             reversedOctaves.remove(octave)
@@ -185,7 +196,8 @@ final class AccordionModel: ObservableObject {
         synth.setPerformance(
             notes: noteBuffer,
             pressure: Float(pressure),
-            brightness: Float(brightness)
+            brightness: Float(brightness),
+            sustain: Float(sustain)
         )
     }
 }

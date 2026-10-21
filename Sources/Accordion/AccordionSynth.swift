@@ -23,6 +23,7 @@ final class ReedEngine: @unchecked Sendable {
     private var requestedNotes = [Int](repeating: -1, count: voiceCount)
     private var requestedPressure: Float = 0
     private var requestedBrightness: Float = 0.5
+    private var requestedSustain: Float = 0.15
 
     private var renderNotes = [Int](repeating: -1, count: voiceCount)
     private var held = [Bool](repeating: false, count: voiceCount)
@@ -32,7 +33,6 @@ final class ReedEngine: @unchecked Sendable {
     private var brightness: Float = 0.5
     private let sampleRate: Float
     private let attack: Float
-    private let release: Float
     private let bassAlpha: Float
 
     private static let detune: [Float] = [
@@ -46,11 +46,10 @@ final class ReedEngine: @unchecked Sendable {
         self.sampleRate = rate
         voices = Array(repeating: Voice(), count: Self.voiceCount)
         attack = Float(1 - exp(-1 / Double(rate * 0.03)))
-        release = Float(1 - exp(-1 / Double(rate * 0.08)))
         bassAlpha = Float(1 - exp(-2 * Double.pi * 240 / Double(rate)))
     }
 
-    func setControls(notes: [Int], pressure: Float, brightness: Float) {
+    func setControls(notes: [Int], pressure: Float, brightness: Float, sustain: Float = 0.15) {
         lock.lock()
         defer { lock.unlock() }
         for index in 0..<Self.voiceCount {
@@ -58,6 +57,7 @@ final class ReedEngine: @unchecked Sendable {
         }
         requestedPressure = min(1, max(0, pressure))
         requestedBrightness = min(1, max(0, brightness))
+        requestedSustain = min(1, max(0, sustain))
     }
 
     func renderMono(frameCount: Int) -> [Float] {
@@ -78,6 +78,7 @@ final class ReedEngine: @unchecked Sendable {
         }
         let targetPressure = requestedPressure
         let targetBrightness = requestedBrightness
+        let sustain = requestedSustain
         lock.unlock()
 
         for index in 0..<Self.voiceCount {
@@ -112,15 +113,17 @@ final class ReedEngine: @unchecked Sendable {
         let midBrightness = (brightness + targetBrightness) * 0.5
         let cutoff = 900 + midPressure * 2200 + midBrightness * 800
         let highAlpha = Float(1 - exp(-2 * Double.pi * Double(cutoff) / Double(sampleRate)))
+        let releaseSeconds = Sustain.seconds(for: Double(sustain))
+        let release = Float(1 - exp(-1 / (Double(sampleRate) * releaseSeconds)))
 
         for frame in 0..<frameCount {
             pressure += pressureStep
             brightness += brightnessStep
             var mix: Float = 0
             for index in 0..<Self.voiceCount {
-                mix += sampleVoice(index, highAlpha: highAlpha)
+                mix += sampleVoice(index, highAlpha: highAlpha, release: release)
             }
-            buffer[frame] = tanh(mix * pressure * 0.38)
+            buffer[frame] = tanh(mix * pressure * 1.2)
         }
     }
 
@@ -150,7 +153,7 @@ final class ReedEngine: @unchecked Sendable {
         voices[index].midi = midi
     }
 
-    private func sampleVoice(_ index: Int, highAlpha: Float) -> Float {
+    private func sampleVoice(_ index: Int, highAlpha: Float, release: Float) -> Float {
         let target: Float = held[index] ? 1 : 0
         let envelope = voices[index].env
         if envelope == 0, target == 0 {
@@ -217,8 +220,8 @@ final class AccordionSynth {
         started = true
     }
 
-    func setPerformance(notes: [Int], pressure: Float, brightness: Float) {
-        reed?.setControls(notes: notes, pressure: pressure, brightness: brightness)
+    func setPerformance(notes: [Int], pressure: Float, brightness: Float, sustain: Float) {
+        reed?.setControls(notes: notes, pressure: pressure, brightness: brightness, sustain: sustain)
     }
 
     func stop() {

@@ -126,7 +126,34 @@ enum AccordionSelfTest {
             print("FAIL bellows-decay pressure \(movingState.pressure)")
             failures += 1
         }
+
+        let shortAir = restingPressure(sustain: 0)
+        let longAir = restingPressure(sustain: 1)
+        if longAir > shortAir + 0.2 {
+            print(String(format: "ok sustain-air %.2f -> %.2f", shortAir, longAir))
+        } else {
+            print("FAIL sustain-air short \(shortAir) long \(longAir)")
+            failures += 1
+        }
         return failures
+    }
+
+    private static func restingPressure(sustain: Double) -> Double {
+        var bellows = Bellows()
+        bellows.sustain = sustain
+        var time = 0.0
+        var angle = 80.0
+        var state = bellows.update(angle: angle, time: time)
+        for _ in 0..<36 {
+            time += 1.0 / 60.0
+            angle += 0.8
+            state = bellows.update(angle: angle, time: time)
+        }
+        for _ in 0..<18 {
+            time += 1.0 / 60.0
+            state = bellows.update(angle: angle, time: time)
+        }
+        return state.pressure
     }
 
     private static func synth() -> Int {
@@ -165,7 +192,25 @@ enum AccordionSelfTest {
             print("FAIL synth-release fade \(rms(fading)) tail \(rms(tail))")
             failures += 1
         }
+
+        let shortTail = releaseTail(sustain: 0)
+        let longTail = releaseTail(sustain: 1)
+        if longTail > shortTail * 2 {
+            print(String(format: "ok sustain %.4f -> %.4f", shortTail, longTail))
+        } else {
+            print("FAIL sustain short \(shortTail) long \(longTail)")
+            failures += 1
+        }
         return failures
+    }
+
+    private static func releaseTail(sustain: Float) -> Float {
+        let engine = ReedEngine(sampleRate: 48_000)
+        engine.setControls(notes: [60], pressure: 0.85, brightness: 0.5, sustain: sustain)
+        _ = engine.renderMono(frameCount: 24_000)
+        engine.setControls(notes: [], pressure: 0.85, brightness: 0.5, sustain: sustain)
+        _ = engine.renderMono(frameCount: 8_000)
+        return rms(engine.renderMono(frameCount: 8_000))
     }
 
     private static func chain() -> Int {

@@ -1,5 +1,15 @@
 import Foundation
 
+enum Sustain {
+    static let shortest = 0.06
+    static let longest = 2.2
+
+    static func seconds(for amount: Double) -> Double {
+        let span = min(1, max(0, amount))
+        return shortest * pow(longest / shortest, span)
+    }
+}
+
 enum BellowsDirection: Equatable {
     case still
     case push
@@ -24,11 +34,13 @@ struct Bellows {
         brightness: 0.5
     )
 
+    var sustain: Double = 0.15
+
     private var history: [(time: Double, angle: Double)] = []
     private let window: Double = 0.12
     private let deadzone = 12.0
     private let fullScale = 80.0
-    private let response: Double = 0.10
+    private let attack: Double = 0.10
 
     mutating func update(angle: Double, time: Double) -> BellowsState {
         if let last = history.last {
@@ -65,7 +77,8 @@ struct Bellows {
         } else {
             dt = 1.0 / 60.0
         }
-        let alpha = 1 - exp(-max(dt, 0.001) / response)
+        let tau = target < state.pressure ? Sustain.seconds(for: sustain) : attack
+        let alpha = 1 - exp(-max(dt, 0.001) / tau)
         var pressure = state.pressure + (target - state.pressure) * alpha
         if target == 0, pressure < 0.015 {
             pressure = 0
